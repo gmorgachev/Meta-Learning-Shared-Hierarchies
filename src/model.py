@@ -16,15 +16,14 @@ class SimpleRecurrent(nn.Module):
         self.observer = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=(2, 2), stride=(1, 1)),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=(2, 2), stride=(1, 1)),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1)),
+            nn.MaxPool2d((2, 2)),
+            nn.Conv2d(64, 32, kernel_size=(2, 2), stride=(1, 1)),
             nn.ReLU(),
             Flatten()
         )
 
-        self.hid = nn.Linear(1600, 256)
-        self.rnn = nn.LSTMCell(256, 256)
+        self.hid = nn.Linear(128, 128)
+        self.rnn = nn.LSTMCell(128, 128)
 
         self.actor = nn.Linear(256, n_actions)
         self.critic = nn.Linear(256, 1)
@@ -33,14 +32,15 @@ class SimpleRecurrent(nn.Module):
         x = self.observer(obs.permute(0, 3, 1, 2))
         x = self.hid(x)
         new_state = self.rnn(x, prev_state)
-        logits = self.actor(new_state[0])
-        state_value = self.critic(new_state[0])[:, 0]
+        x = torch.cat([new_state[0], x], -1)
+        logits = self.actor(x)
+        state_value = self.critic(x)[:, 0]
 
         return new_state, (logits, state_value)
 
     def get_initial_state(self, batch_size):
-        return torch.zeros((batch_size, 256)),\
-               torch.zeros((batch_size, 256))
+        return torch.zeros((batch_size, 128)),\
+               torch.zeros((batch_size, 128))
 
     def sample_actions(self, agent_outputs):
         logits, state_values = agent_outputs

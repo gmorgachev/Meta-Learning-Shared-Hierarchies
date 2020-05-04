@@ -57,7 +57,7 @@ class A2CAlgo:
             V_t = state_values[:, t]
             V_next = state_values[:, t + 1].detach()
             logpi_a_s_t = logprobas_for_actions[:, t]
-            cumulative_returns = G_t = r_t + gamma * cumulative_returns
+            cumulative_returns = r_t + gamma * cumulative_returns
             value_loss += torch.mean((r_t + gamma * V_next - V_t) ** 2)
             mask = is_not_done[:, t]
             advantage = mask * (rewards[:, t:] * gamma ** torch.arange(rewards.shape[-1] - t)).sum(1) \
