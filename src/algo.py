@@ -70,7 +70,7 @@ class A2CAlgo:
 
         loss = -J_hat / rollout_length + \
                value_loss / rollout_length + \
-               -0.01 * entropy_reg
+               -entropy_reg
 
         loss.backward()
         grad_norm = nn.utils.clip_grad_norm_(self.agent.parameters(), max_grad_norm)
