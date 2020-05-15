@@ -22,9 +22,18 @@ class MLSHAgent(nn.Module):
 
         return new_state, (logits, state_value)
 
-    def forward_sub(self, i, prev_state, obs):
+    def forward_sub(self, idxs, prev_state, obs):
+        assert len(idxs) == obs.shape[0]
         new_state = self.observer(prev_state, obs)
-        logits, state_value = self.subpolicies[i](new_state[0])
+        logits = []
+        state_value = []
+        for idx, state in zip(idxs, new_state[0]):
+            logit, v = self.subpolicies[idx](state.unsqueeze(0))
+            logits.append(logit)
+            state_value.append(v)
+
+        logits = torch.cat(logits)
+        state_value = torch.cat(state_value)
 
         return new_state, (logits, state_value)
 
@@ -42,9 +51,10 @@ class MLSHAgent(nn.Module):
         (h, c), (l, s) = self.forward_master(prev_state, obs_img)
         return (h, c), (l, s)
 
-    def step_subpolicy(self, i, prev_state, obs_t):
+    def step(self, idxs, prev_state, obs_t):
         obs_img = torch.tensor(obs_t, dtype=torch.float32)
-        (h, c), (l, s) = self.forward_sub(i, prev_state, obs_img)
+
+        (h, c), (l, s) = self.forward_sub(idxs, prev_state, obs_img)
         return (h, c), (l, s)
 
 
