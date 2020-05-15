@@ -48,8 +48,8 @@ class MLSHAgent(nn.Module):
 
     def step_master(self, prev_state, obs_t):
         obs_img = torch.tensor(obs_t, dtype=torch.float32)
-        (h, c), (l, s) = self.forward_master(prev_state, obs_img)
-        return (h, c), (l, s)
+        _, (l, s) = self.forward_master(prev_state, obs_img)
+        return prev_state, (l, s)
 
     def step(self, idxs, prev_state, obs_t):
         obs_img = torch.tensor(obs_t, dtype=torch.float32)
