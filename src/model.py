@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 class Flatten(nn.Module):
     def forward(self, input):
-        return input.view(input.size(0), -1)
+        return input.reshape(input.size(0), -1)
 
 
 class Observer(nn.Module):
@@ -38,6 +38,8 @@ class SimpleRecurrent(nn.Module):
     def __init__(self, obs_shape, n_actions, config):
         """A simple actor-critic agent"""
         super(self.__class__, self).__init__()
+        self.n_actions = n_actions
+        self.device = config["device"]
         self.observer = Observer(config)
 
         self.actor = nn.Sequential(
@@ -51,6 +53,7 @@ class SimpleRecurrent(nn.Module):
             nn.Tanh(),
             nn.Linear(64, 1)
         )
+        self.to(self.device)
 
     def forward(self, prev_state, obs):
         new_state = self.observer(prev_state, obs)
@@ -60,8 +63,8 @@ class SimpleRecurrent(nn.Module):
         return new_state, (logits, state_value)
 
     def get_initial_state(self, batch_size):
-        return torch.zeros((batch_size, self.observer.rnn.hidden_size)),\
-               torch.zeros((batch_size, self.observer.rnn.hidden_size))
+        return torch.zeros((batch_size, self.observer.rnn.hidden_size)).to(self.device),\
+               torch.zeros((batch_size, self.observer.rnn.hidden_size)).to(self.device)
 
     def sample_actions(self, agent_outputs):
         logits, state_values = agent_outputs
@@ -69,6 +72,34 @@ class SimpleRecurrent(nn.Module):
         return torch.multinomial(probs, 1)[:, 0].data.numpy()
 
     def step(self, prev_state, obs_t):
-        obs_img = torch.tensor(obs_t, dtype=torch.float32)
+        obs_img = torch.tensor(obs_t, dtype=torch.float32).to(self.device)
         (h, c), (l, s) = self.forward(prev_state, obs_img)
         return (h, c), (l, s)
+
+
+class SubPolicy(nn.Module):
+    def __init__(self, n_actions, config):
+        super(SubPolicy, self).__init__()
+
+        self.actor = nn.Sequential(
+            nn.Linear(config["emb_dim"], 64),
+            nn.Tanh(),
+            nn.Linear(64, n_actions)
+        )
+
+        self.critic = nn.Sequential(
+            nn.Linear(config["emb_dim"], 64),
+            nn.Tanh(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x):
+        pass
+
+
+class MasterPolicy:
+    def __init__(self, n_subpolicies):
+        pass
+
+    def forward(self, x):
+        pass

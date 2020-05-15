@@ -4,11 +4,13 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from src.env_pool import EnvPool
+
 
 class A2CAlgo:
     def __init__(self, agent, device, n_actions, gamma, max_grad_norm,
                  entropy_coef=0.01, lr=0.01, value_loss_coef=0.5):
-        self.opt = torch.optim.AdamW(agent.parameters(), lr=lr)
+        self.opt = torch.optim.Adam(agent.parameters(), lr=lr)
         self.device = device
         self.n_actions = n_actions
         self.agent = agent.to(self.device)
@@ -22,7 +24,8 @@ class A2CAlgo:
              actions,
              rewards,
              is_not_done,
-             prev_memory_states):
+             prev_memory_states,
+             gamma):
 
         states = torch.tensor(np.asarray(states),
                               dtype=torch.float32).to(self.device)
@@ -34,9 +37,10 @@ class A2CAlgo:
                                    dtype=torch.float32).to(self.device)
         rollout_length = rewards.shape[1] - 1
         memory = [m.detach() for m in prev_memory_states]
+        rewards = EnvPool.discount_with_dones(rewards, is_not_done, gamma)
 
-        logits = []  # append logit sequence here
-        state_values = []  # append state values here
+        logits = []
+        state_values = []
         for t in range(rewards.shape[1]):
             obs_t = states[:, t]
             memory, (logits_t, values_t) = self.agent(memory, obs_t)
@@ -53,8 +57,9 @@ class A2CAlgo:
         logprobas_for_actions = torch.sum(logprobas * actions_one_hot, dim=-1)
 
         actor_loss = 0
-        critic_loss = 0
         advantange = 0
+        # critic_loss = 0
+        rewards = EnvPool.discount_with_dones(rewards, is_not_done, gamma)
 
         for t in reversed(range(rollout_length)):
             advantage = self.get_advantage(
@@ -64,12 +69,13 @@ class A2CAlgo:
                 advantange,
                 state_values).detach()
 
-            critic_loss += (state_values[:, t] - rewards[:, t]).pow(2).mean()
             actor_loss += -(logprobas_for_actions[:, t] * advantage).mean()
 
         entropy_reg = -(probas * logprobas).sum(-1).mean()
-        loss = actor_loss / rollout_length + \
-               self.value_loss_coef * critic_loss / rollout_length + \
+        actor_loss /= rollout_length
+        critic_loss = (state_values - rewards).pow(2).mean()
+        loss = actor_loss + \
+               self.value_loss_coef * critic_loss + \
                -self.entropy_coef * entropy_reg
 
         loss.backward()
@@ -77,20 +83,16 @@ class A2CAlgo:
         self.opt.step()
         self.opt.zero_grad()
 
-        return loss.data.numpy(), grad_norm, entropy_reg.data.numpy()
+        return loss.data.numpy(), grad_norm, entropy_reg.data.numpy(), state_values.data.numpy(),\
+               actor_loss.data.numpy(), critic_loss.data.numpy()
 
     def get_advantage(self, masks, rewards, t, next_advantage, values, gae_lambda=0.95):
-        return rewards[:, t] + \
-               masks[:, t]*(
-                (self.gamma*values[:, t+1]
-                 - values[:, t]
-                 - gae_lambda*next_advantage))
+        return rewards[:, t] + self.gamma*values[:, t+1] - values[:, t]
 
-    @staticmethod
-    def to_one_hot(y, n_dims=None):
+    def to_one_hot(self, y, n_dims=None):
         """ Take an integer tensor and convert it to 1-hot matrix. """
         y_tensor = y.to(dtype=torch.int64).reshape(-1, 1)
         n_dims = n_dims if n_dims is not None else int(torch.max(y_tensor)) + 1
-        y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1)
+        y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1).to(self.device)
 
         return y_one_hot

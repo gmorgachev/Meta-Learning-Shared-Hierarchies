@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 class EnvPool(object):
@@ -34,9 +35,9 @@ class EnvPool(object):
         history_log = []
 
         for i in range(n_steps - 1):
-            new_memory_states, readout = self.agent.step(
+            new_memory_states, (logit, value) = self.agent.step(
                 self.prev_memory_states, self.prev_observations)
-            actions = self.agent.sample_actions(readout)
+            actions = self.agent.sample_actions((logit, value))
 
             new_observations, cur_rewards, is_alive, infos = zip(
                 *map(env_step, range(len(self.envs)), actions))
@@ -60,6 +61,13 @@ class EnvPool(object):
             np.array(tensor).swapaxes(0, 1)\
                 for tensor in zip(*history_log)
         ]
-        observation_seq, action_seq, reward_seq, is_alive_seq = history_log
+        obs_seq, act_seq, reward_seq, is_alive_seq = history_log
 
-        return observation_seq, action_seq, reward_seq, is_alive_seq
+        return obs_seq, act_seq, reward_seq, is_alive_seq
+
+    @staticmethod
+    def discount_with_dones(rewards, is_active, gamma):
+        discounted_rewards = rewards.clone()
+        for t in reversed(range(rewards.shape[1]-1)):
+            discounted_rewards[:, t] += gamma * discounted_rewards[:, t+1] * is_active[:, t]
+        return discounted_rewards
