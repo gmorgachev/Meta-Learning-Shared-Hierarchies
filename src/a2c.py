@@ -8,47 +8,34 @@ from src.env_pool import EnvPool
 
 
 class A2CAlgo:
-    def __init__(self, agent, device, n_actions, gamma, max_grad_norm,
+    def __init__(self, params, device, n_actions, gamma, max_grad_norm,
                  entropy_coef=0.01, lr=0.01, value_loss_coef=0.5):
-        self.opt = torch.optim.Adam(agent.parameters(), lr=lr)
+        self.params = list(params)
+        self.opt = torch.optim.Adam(self.params, lr=lr)
         self.device = device
         self.n_actions = n_actions
-        self.agent = agent.to(self.device)
         self.gamma = gamma
         self.max_grad_norm = max_grad_norm
         self.entropy_coef = entropy_coef
         self.value_loss_coef = value_loss_coef
 
     def step(self,
-             states,
              actions,
              rewards,
              is_not_done,
-             prev_memory_states,
-             gamma):
+             logits,
+             state_values):
 
-        states = torch.tensor(np.asarray(states),
-                              dtype=torch.float32).to(self.device)
         actions = torch.tensor(np.array(actions),
                                dtype=torch.int64).to(self.device)
         rewards = torch.tensor(np.array(rewards),
                                dtype=torch.float32).to(self.device)
         is_not_done = torch.tensor(np.array(is_not_done),
                                    dtype=torch.float32).to(self.device)
+
+        rewards = EnvPool.discount_with_dones(rewards, is_not_done, self.gamma)
+
         rollout_length = rewards.shape[1] - 1
-        memory = [m.detach() for m in prev_memory_states]
-        rewards = EnvPool.discount_with_dones(rewards, is_not_done, gamma)
-
-        logits = []
-        state_values = []
-        for t in range(rewards.shape[1]):
-            obs_t = states[:, t]
-            memory, (logits_t, values_t) = self.agent(memory, obs_t)
-            logits.append(logits_t)
-            state_values.append(values_t)
-
-        logits = torch.stack(logits, dim=1)
-        state_values = torch.stack(state_values, dim=1)
         probas = F.softmax(logits, dim=2)
         logprobas = F.log_softmax(logits, dim=2)
 
@@ -58,8 +45,6 @@ class A2CAlgo:
 
         actor_loss = 0
         advantange = 0
-        # critic_loss = 0
-        rewards = EnvPool.discount_with_dones(rewards, is_not_done, gamma)
 
         for t in reversed(range(rollout_length)):
             advantage = self.get_advantage(
@@ -79,11 +64,11 @@ class A2CAlgo:
                -self.entropy_coef * entropy_reg
 
         loss.backward()
-        grad_norm = nn.utils.clip_grad_norm_(self.agent.parameters(), self.max_grad_norm)
+        grad_norm = nn.utils.clip_grad_norm_(self.params, self.max_grad_norm)
         self.opt.step()
         self.opt.zero_grad()
 
-        return loss.data.numpy(), grad_norm, entropy_reg.data.numpy(), state_values.data.numpy(),\
+        return loss.data.numpy(), grad_norm.data.numpy(), entropy_reg.data.numpy(), state_values.data.numpy(),\
                actor_loss.data.numpy(), critic_loss.data.numpy()
 
     def get_advantage(self, masks, rewards, t, next_advantage, values, gae_lambda=0.95):

@@ -28,7 +28,7 @@ class MLSHAgent(nn.Module):
         logits = []
         state_value = []
         for idx, state in zip(idxs, new_state[0]):
-            logit, v = self.subpolicies[idx](state.unsqueeze(0))
+            logit, v = self.subpolicies[idx](state.unsqueeze(0).clone())
             logits.append(logit)
             state_value.append(v)
 
