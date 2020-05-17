@@ -33,6 +33,9 @@ def evaluate(agent, env, n_games=1):
 
 def evaluate_mlsh(agent: MLSHAgent, env, n_games=1, master_step=5):
     game_rewards = []
+    master_histories = []
+    step_counts = []
+
     for _ in range(n_games):
         observation = env.reset()
         prev_memories = agent.get_initial_state(1)
@@ -58,7 +61,9 @@ def evaluate_mlsh(agent: MLSHAgent, env, n_games=1, master_step=5):
                 break
 
         game_rewards.append(total_reward)
-    return game_rewards, step_counter, master_hist
+        step_counts.append(step_counter)
+        master_histories.append(master_hist)
+    return game_rewards, step_counts, master_histories
 
 
 class ObserverMinigrid(Wrapper):
