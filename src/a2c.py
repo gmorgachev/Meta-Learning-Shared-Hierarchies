@@ -44,14 +44,11 @@ class A2CAlgo:
         logprobas_for_actions = torch.sum(logprobas * actions_one_hot, dim=-1)
 
         actor_loss = 0
-        advantange = 0
 
         for t in reversed(range(rollout_length)):
             advantage = self.get_advantage(
-                is_not_done,
                 rewards,
                 t,
-                advantange,
                 state_values).detach()
 
             actor_loss += -(logprobas_for_actions[:, t] * advantage).mean()
@@ -71,7 +68,7 @@ class A2CAlgo:
         return loss.data.numpy(), grad_norm.data.numpy(), entropy_reg.data.numpy(), state_values.data.numpy(),\
                actor_loss.data.numpy(), critic_loss.data.numpy()
 
-    def get_advantage(self, masks, rewards, t, next_advantage, values, gae_lambda=0.95):
+    def get_advantage(self, rewards, t, values):
         return rewards[:, t] + self.gamma*values[:, t+1] - values[:, t]
 
     def to_one_hot(self, y, n_dims=None):

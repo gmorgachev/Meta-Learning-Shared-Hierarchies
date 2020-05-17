@@ -41,8 +41,8 @@ class EnvPool(object):
              dummy_mask))
 
         history_log = [
-            np.array(tensor).swapaxes(0, 1)\
-                for tensor in zip(*history_log)
+            np.array(tensor).swapaxes(0, 1) \
+            for tensor in zip(*history_log)
         ]
         obs_seq, act_seq, reward_seq, is_alive_seq = history_log
 
@@ -71,8 +71,8 @@ class EnvPool(object):
     @staticmethod
     def discount_with_dones(rewards, is_active, gamma):
         discounted_rewards = rewards.clone()
-        for t in reversed(range(rewards.shape[1]-1)):
-            discounted_rewards[:, t] += gamma * discounted_rewards[:, t+1] * is_active[:, t]
+        for t in reversed(range(rewards.shape[1] - 1)):
+            discounted_rewards[:, t] += gamma * discounted_rewards[:, t + 1] * is_active[:, t]
         return discounted_rewards
 
 
@@ -87,6 +87,7 @@ class MLSHPool(EnvPool):
         self.prev_memory_states = [x.detach() for x in self.prev_memory_states]
 
         for i in range(1, n_steps):
+            # TODO: remove??
             # if i % master_step == 0:
             #     with torch.no_grad():
             #         subpolicies_id = self.get_master_idxs()
@@ -108,8 +109,8 @@ class MLSHPool(EnvPool):
             self.prev_memory_states = new_memory_states
 
         history_log = [
-            np.array(tensor).swapaxes(0, 1)\
-                for tensor in zip(*history_log)
+            np.array(tensor).swapaxes(0, 1) \
+            for tensor in zip(*history_log)
         ]
         obs_seq, act_seq, reward_seq, is_alive_seq = history_log
         logits = torch.stack(logits).permute(1, 0, 2)
@@ -121,6 +122,7 @@ class MLSHPool(EnvPool):
         history_log = []
         logits = []
         values = []
+        self.prev_memory_states = [x.detach() for x in self.prev_memory_states]
 
         for i in range(n_master_steps):
             new_memory_states, (logit, value) = self.agent.step_master(
@@ -135,25 +137,13 @@ class MLSHPool(EnvPool):
             logits.append(logit)
             values.append(value)
 
-        dummy_actions = [0] * len(self.envs)
-        dummy_rewards = [0] * len(self.envs)
-        dummy_mask = [1] * len(self.envs)
-        history_log.append(
-            (self.prev_observations,
-             dummy_actions,
-             dummy_rewards,
-             dummy_mask))
-
         history_log = [
             np.array(tensor).swapaxes(0, 1) \
             for tensor in zip(*history_log)
         ]
         obs_seq, act_seq, reward_seq, is_alive_seq = history_log
-        print(len(logits))
-        print(len(values))
-        print(len(act_seq))
-        logits = torch.cat(logits)
-        values = torch.cat(values)
+        logits = torch.stack(logits).permute(1, 0, 2)
+        values = torch.stack(values).permute(1, 0)
 
         return obs_seq, act_seq, reward_seq, is_alive_seq, logits, values
 
@@ -164,4 +154,3 @@ class MLSHPool(EnvPool):
             subpolicies_id = self.agent.sample_actions((logit, value))
 
             return subpolicies_id
-
