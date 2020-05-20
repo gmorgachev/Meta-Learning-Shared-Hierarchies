@@ -79,18 +79,23 @@ class EnvPool(object):
 class MLSHPool(EnvPool):
     def __init__(self, agent: MLSHAgent, make_env, n_parallel_games=1):
         super().__init__(agent, make_env, n_parallel_games)
+        self.seeds = np.random.randint(1, 30, size=len(self.envs)).tolist()
 
-    def interact(self, n_steps, subpolicies_id=None, master_step=1000000):
+        self.counter = 0
+
+    def update_seeds(self):
+        self.seeds = np.random.randint(1, 30, size=len(self.envs)).tolist()
+        for seed, env in zip(self.seeds, self.envs):
+            env.seed(int(seed))
+
+    def interact(self, n_steps, subpolicies_id):
         history_log = []
         logits = []
         state_values = []
         self.prev_memory_states = [x.detach() for x in self.prev_memory_states]
 
         for i in range(1, n_steps):
-            # TODO: remove??
-            # if i % master_step == 0:
-            #     with torch.no_grad():
-            #         subpolicies_id = self.get_master_idxs()
+            self.counter += 1
             new_memory_states, (logit, value) = self.agent.step(
                 subpolicies_id, self.prev_memory_states, self.prev_observations)
 
@@ -122,30 +127,41 @@ class MLSHPool(EnvPool):
         history_log = []
         logits = []
         values = []
+
+        m_logits = []
+        m_values = []
         self.prev_memory_states = [x.detach() for x in self.prev_memory_states]
 
         for i in range(n_master_steps):
-            new_memory_states, (logit, value) = self.agent.step_master(
+            new_memory_states, (m_logit, m_value) = self.agent.step_master(
                 self.prev_memory_states, self.prev_observations)
-            prev_master_obs = self.prev_observations
-            subpolicies_id = self.agent.sample_actions((logit, value))
-            obs_seq, act_seq, reward_seq, is_alive_seq, _, _ = \
+            subpolicies_id = self.agent.sample_actions((m_logit, m_value))
+
+            obs_seq, act_seq, reward_seq, is_alive_seq, logit, value = \
                 self.interact(step_size, subpolicies_id)
 
             history_log.append(
-                (prev_master_obs, subpolicies_id, reward_seq.sum(1), is_alive_seq.sum(1)))
+                (obs_seq, act_seq, subpolicies_id, reward_seq, is_alive_seq))
             logits.append(logit)
             values.append(value)
+            m_logits.append(m_logit)
+            m_values.append(m_value)
 
         history_log = [
             np.array(tensor).swapaxes(0, 1) \
             for tensor in zip(*history_log)
         ]
-        obs_seq, act_seq, reward_seq, is_alive_seq = history_log
-        logits = torch.stack(logits).permute(1, 0, 2)
-        values = torch.stack(values).permute(1, 0)
+        obs_seq, act_seq, idxs, reward_seq, is_alive_seq = history_log
+        m_logits = torch.stack(m_logits).permute(1, 0, 2)
+        m_values = torch.stack(m_values).permute(1, 0)
 
-        return obs_seq, act_seq, reward_seq, is_alive_seq, logits, values
+        logits = torch.cat(logits, 1)
+        values = torch.cat(values, 1)
+
+        act_seq = np.concatenate(act_seq.swapaxes(0, -1), 0).swapaxes(0, -1)
+        is_alive_seq = np.concatenate(is_alive_seq.swapaxes(0, -1), 0).swapaxes(0, -1)
+
+        return obs_seq, act_seq, idxs, reward_seq, is_alive_seq, logits, values, m_logits, m_values
 
     def get_master_idxs(self):
         with torch.no_grad():
@@ -154,3 +170,24 @@ class MLSHPool(EnvPool):
             subpolicies_id = self.agent.sample_actions((logit, value))
 
             return subpolicies_id
+
+    def env_step(self, i, action, new_memory_states):
+        if not self.just_ended[i]:
+            new_observation, cur_reward, is_done, info = \
+                self.envs[i].step(action)
+            if is_done:
+                self.just_ended[i] = True
+
+            return new_observation, cur_reward, True, info
+        else:
+            self.envs[i].seed(self.seeds[i])
+            new_observation = self.envs[i].reset()
+
+            initial_memory_state = self.agent.get_initial_state(
+                batch_size=1)
+            for m_i in range(len(new_memory_states)):
+                new_memory_states[m_i][i] = initial_memory_state[m_i][0]
+
+            self.just_ended[i] = False
+
+            return new_observation, 0, False, {'end': True}

@@ -18,7 +18,7 @@ class MLSHAgent(nn.Module):
 
     def forward_master(self, prev_state, obs):
         new_state = self.observer(prev_state, obs)
-        logits, state_value = self.master_policy(new_state[0].clone())
+        logits, state_value = self.master_policy(new_state[0].detach())
 
         return new_state, (logits, state_value)
 

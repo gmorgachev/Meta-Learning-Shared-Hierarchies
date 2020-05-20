@@ -7,9 +7,6 @@ from src.mlsh_model import MLSHAgent
 
 
 def evaluate(agent, env, n_games=1):
-    """
-    Plays an entire game start to end, returns session rewards.
-    """
     game_rewards = []
     for _ in range(n_games):
         observation = env.reset()
@@ -31,7 +28,7 @@ def evaluate(agent, env, n_games=1):
     return game_rewards
 
 
-def evaluate_mlsh(agent: MLSHAgent, env, n_games=1, master_step=5):
+def evaluate_mlsh(agent: MLSHAgent, env, n_games, master_step):
     game_rewards = []
     master_histories = []
     step_counts = []
@@ -88,4 +85,6 @@ def make_env(name="MiniGrid-Empty-5x5-v0"):
     env = gym.make(name)
     env = ImgObsWrapper(env)
     return env
+
+
 
