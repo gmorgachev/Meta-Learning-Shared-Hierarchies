@@ -46,7 +46,7 @@ def joint_train(m_a2c, s_a2c, pool, n_iter, step_size, n_steps, n_env):
             "entropy": entropy,
             "loss": loss,
             "grad_norm": grad_norm
-        }, step=pool.counter)
+        })
 
     rewards_per_epoch += rewards.mean()
     return rewards_per_epoch / n_iter, grad_norm, entropy, loss
@@ -72,7 +72,7 @@ def common_train(a2c, pool, n_iter, n_steps):
             "entropy": entropy,
             "loss": loss,
             "grad_norm": grad_norm
-        }, step=pool.counter)
+        })
 
     rewards_per_epoch += rewards.mean()
 
