@@ -75,31 +75,3 @@ class SimpleRecurrent(nn.Module):
         obs_img = torch.tensor(obs_t, dtype=torch.float32).to(self.device)
         (h, c), (l, s) = self.forward(prev_state, obs_img)
         return (h, c), (l, s)
-
-
-class SubPolicy(nn.Module):
-    def __init__(self, n_actions, config):
-        super(SubPolicy, self).__init__()
-
-        self.actor = nn.Sequential(
-            nn.Linear(config["emb_dim"], 64),
-            nn.Tanh(),
-            nn.Linear(64, n_actions)
-        )
-
-        self.critic = nn.Sequential(
-            nn.Linear(config["emb_dim"], 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
-
-    def forward(self, x):
-        pass
-
-
-class MasterPolicy:
-    def __init__(self, n_subpolicies):
-        pass
-
-    def forward(self, x):
-        pass

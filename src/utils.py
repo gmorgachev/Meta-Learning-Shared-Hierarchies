@@ -4,54 +4,62 @@ import numpy as np
 from gym import Wrapper
 
 from src.mlsh_model import MLSHAgent
+from gym_minigrid.wrappers import FlatObsWrapper
 
 
-def evaluate(agent, env, n_games=1):
-    game_rewards = []
-    for _ in range(n_games):
-        observation = env.reset()
-        prev_memories = agent.get_initial_state(1)
-
-        total_reward = 0
-        while True:
-            new_memories, readouts = agent.step(
-                prev_memories, observation[None, ...])
-            action = agent.sample_actions(readouts)
-
-            observation, reward, done, info = env.step(action[0])
-            total_reward += reward
-            prev_memories = new_memories
-            if done:
-                break
-
-        game_rewards.append(total_reward)
-    return game_rewards
-
-
-def evaluate_mlsh(agent: MLSHAgent, env, n_games, master_step):
+def evaluate(agent, env, n_games=1, last_env=None):
     game_rewards = []
     master_histories = []
     step_counts = []
 
     for _ in range(n_games):
+        if last_env is not None:
+            env.seed(last_env)
         observation = env.reset()
-        prev_memories = agent.get_initial_state(1)
+        total_reward = 0
+        step_counter = 0
+        master_hist = []
+        master_action_idxs = [0]
+        while True:
+            readouts = agent.step(master_action_idxs, observation[None, ...])
+            action = agent.sample_actions(readouts)
 
+            observation, reward, done, info = env.step(action[0])
+            total_reward += reward
+            master_hist.append(master_action_idxs)
+            step_counter += 1
+            if done:
+                break
+
+        game_rewards.append(total_reward)
+        step_counts.append(step_counter)
+        master_histories.append(master_hist)
+    return game_rewards, step_counts, master_histories
+
+
+def evaluate_mlsh(agent: MLSHAgent, env, n_games, master_step,
+                  last_env=None):
+    game_rewards = []
+    master_histories = []
+    step_counts = []
+
+    for _ in range(n_games):
+        if last_env is not None:
+            env.seed(last_env)
+        observation = env.reset()
         total_reward = 0
         step_counter = 0
         master_hist = []
         while True:
             if step_counter % master_step == 0:
-                prev_memories, readouts = agent.step_master(
-                    prev_memories, observation[None, ...])
+                readouts = agent.step_master(
+                    observation[None, ...])
                 master_action_idxs = agent.sample_actions(readouts)
-            new_memories, readouts = agent.step(
-                master_action_idxs, prev_memories, observation[None, ...])
+            readouts = agent.step(master_action_idxs, observation[None, ...])
             action = agent.sample_actions(readouts)
 
             observation, reward, done, info = env.step(action[0])
             total_reward += reward
-            prev_memories = new_memories
             master_hist.append(master_action_idxs)
             step_counter += 1
             if done:
@@ -66,7 +74,7 @@ def evaluate_mlsh(agent: MLSHAgent, env, n_games, master_step):
 class ObserverMinigrid(Wrapper):
     def __init__(self, env):
         super(ObserverMinigrid, self).__init__(env)
-        self.env = env
+        self.env = FlatObsWrapper(env)
 
     def reset(self):
         obs = self.env.reset()
@@ -75,15 +83,13 @@ class ObserverMinigrid(Wrapper):
 
     def step(self, action):
         obs, r, done, info = self.env.step(action)
-        obs = ([obs["image"]],
-                np.asarray([obs["direction"]]))
         return obs, r, done, info
 
 
 def make_env(name="MiniGrid-Empty-5x5-v0"):
     from gym_minigrid.wrappers import ImgObsWrapper
     env = gym.make(name)
-    env = ImgObsWrapper(env)
+    env = FlatObsWrapper(env)
     return env
 
 
