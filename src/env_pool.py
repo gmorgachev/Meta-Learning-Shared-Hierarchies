@@ -25,13 +25,13 @@ class MLSHPool(EnvPool):
                  n_parallel_games=1,
                  random_reset=True):
         super().__init__(agent, make_env, n_parallel_games)
-        self.seeds = np.random.randint(1, 3000, size=len(self.envs)).tolist()
+        self.seeds = np.random.randint(1, 3000, 1).tolist() * len(self.envs)
 
         self.counter = 0
         self.random_reset = random_reset
 
     def update_seeds(self):
-        self.seeds = np.random.randint(1, 3000, size=len(self.envs)).tolist()
+        self.seeds = np.random.randint(1, 3000, 1).tolist() * len(self.envs)
         for seed, env in zip(self.seeds, self.envs):
             env.seed(int(seed))
 

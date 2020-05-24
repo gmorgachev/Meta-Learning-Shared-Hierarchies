@@ -3,7 +3,6 @@ import numpy as np
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import Categorical
-from .model import Observer
 
 
 class MLSHAgent(nn.Module):
