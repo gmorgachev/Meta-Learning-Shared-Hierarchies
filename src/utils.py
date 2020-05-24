@@ -39,6 +39,10 @@ def evaluate(agent, env, n_games=1, last_env=None):
 
 def evaluate_mlsh(agent: MLSHAgent, env, n_games, master_step,
                   last_env=None):
+    """
+    Play n_games games with MLSH agent
+    :param last_env: seed for selected game
+    """
     game_rewards = []
     master_histories = []
     step_counts = []
@@ -87,7 +91,6 @@ class ObserverMinigrid(Wrapper):
 
 
 def make_env(name="MiniGrid-Empty-5x5-v0"):
-    from gym_minigrid.wrappers import ImgObsWrapper
     env = gym.make(name)
     env = FlatObsWrapper(env)
     return env

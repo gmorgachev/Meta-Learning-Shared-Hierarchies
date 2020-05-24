@@ -31,6 +31,9 @@ class MLSHPool(EnvPool):
         self.random_reset = random_reset
 
     def update_seeds(self):
+        """
+        Update seeds to select new task
+        """
         self.seeds = np.random.randint(1, 3000, 1).tolist() * len(self.envs)
         for seed, env in zip(self.seeds, self.envs):
             env.seed(int(seed))
@@ -67,6 +70,10 @@ class MLSHPool(EnvPool):
         return obs_seq, act_seq, reward_seq, is_alive_seq, logits, state_values
 
     def master_interact(self, n_master_steps=10, step_size=5):
+        """
+        Make n_master_steps iteration of master policies.
+        Return the series of n_master_steps*step_size interactions
+        """
         history_log = []
         logits = []
         values = []
@@ -106,6 +113,9 @@ class MLSHPool(EnvPool):
         return obs_seq, act_seq, idxs, reward_seq, is_alive_seq, logits, values, m_logits, m_values
 
     def get_master_idxs(self):
+        """
+        Select subpolicies from previous observation
+        """
         with torch.no_grad():
             logit, value = self.agent.step_master(self.prev_observations)
             subpolicies_id = self.agent.sample_actions((logit, value))
